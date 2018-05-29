@@ -8,8 +8,8 @@
 
 'use strict'
 
-var base64 = require('base64-js')
-var ieee754 = require('ieee754')
+var base64 = require('./base64-js')
+var ieee754 = require('./ieee754')
 
 exports.Buffer = Buffer
 exports.SlowBuffer = SlowBuffer
@@ -17,41 +17,6 @@ exports.INSPECT_MAX_BYTES = 50
 
 var K_MAX_LENGTH = 0x7fffffff
 exports.kMaxLength = K_MAX_LENGTH
-
-/**
- * If `Buffer.TYPED_ARRAY_SUPPORT`:
- *   === true    Use Uint8Array implementation (fastest)
- *   === false   Print warning and recommend using `buffer` v4.x which has an Object
- *               implementation (most compatible, even IE6)
- *
- * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
- * Opera 11.6+, iOS 4.2+.
- *
- * We report that the browser does not support typed arrays if the are not subclassable
- * using __proto__. Firefox 4-29 lacks support for adding new properties to `Uint8Array`
- * (See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438). IE 10 lacks support
- * for __proto__ and has a buggy typed array implementation.
- */
-Buffer.TYPED_ARRAY_SUPPORT = typedArraySupport()
-
-if (!Buffer.TYPED_ARRAY_SUPPORT && typeof console !== 'undefined' &&
-    typeof console.error === 'function') {
-  console.error(
-    'This browser lacks typed array (Uint8Array) support which is required by ' +
-    '`buffer` v5.x. Use `buffer` v4.x if you require old browser support.'
-  )
-}
-
-function typedArraySupport () {
-  // Can typed array instances can be augmented?
-  try {
-    var arr = new Uint8Array(1)
-    arr.__proto__ = {__proto__: Uint8Array.prototype, foo: function () { return 42 }}
-    return arr.foo() === 42
-  } catch (e) {
-    return false
-  }
-}
 
 Object.defineProperty(Buffer.prototype, 'parent', {
   enumerable: true,
@@ -147,7 +112,7 @@ function from (value, encodingOrOffset, length) {
     return Buffer.from(valueOf, encodingOrOffset, length)
   }
 
-  var b = fromObject(value)
+  var b = fromObject(value, encodingOrOffset, length)
   if (b) return b
 
   if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null &&
@@ -158,7 +123,7 @@ function from (value, encodingOrOffset, length) {
   }
 
   throw new TypeError(
-    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, NSData, ' +
     'or Array-like Object. Received type ' + (typeof value)
   )
 }
@@ -286,7 +251,25 @@ function fromArrayBuffer (array, byteOffset, length) {
   return buf
 }
 
-function fromObject (obj) {
+function fromNSData (nsdata, encodingOrOffset, length) {
+  // parse nsdata as a string
+  const data = String(NSString.alloc().initWithData_encoding(nsdata, NSISOLatin1StringEncoding))
+
+  // respect options
+  const _offset = encodingOrOffset || 0
+  const _length = typeof length !== 'undefined' ? length : (data.length - _offset)
+
+  const buf = new Uint8Array(_length);
+  for (let i = _offset; i < _length + _offset; i += 1) {
+    buf[i] = data.charCodeAt(i);
+  }
+
+  // Return an augmented `Uint8Array` instance
+  buf.__proto__ = Buffer.prototype
+  return buf;
+}
+
+function fromObject (obj, encodingOrOffset, length) {
   if (Buffer.isBuffer(obj)) {
     var len = checked(obj.length) | 0
     var buf = createBuffer(len)
@@ -297,6 +280,16 @@ function fromObject (obj) {
 
     obj.copy(buf, 0, 0, len)
     return buf
+  }
+
+  var className
+
+  try {
+    className = String(obj.class())
+  } catch (err) {}
+
+  if (className && className === 'NSData' || className === 'NSConcreteData' || className === 'NSConcreteMutableData') {
+    return fromNSData(obj, encodingOrOffset, length)
   }
 
   if (obj.length !== undefined) {
@@ -601,6 +594,7 @@ Buffer.prototype.inspect = function inspect () {
   var str = ''
   var max = exports.INSPECT_MAX_BYTES
   str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
+  console.log(str)
   if (this.length > max) str += ' ... '
   return '<Buffer ' + str + '>'
 }
@@ -924,6 +918,11 @@ Buffer.prototype.toJSON = function toJSON () {
     type: 'Buffer',
     data: Array.prototype.slice.call(this._arr || this, 0)
   }
+}
+
+Buffer.prototype.toNSData = function toNSData () {
+  const string = NSString.stringWithString(this.toString('binary'))
+  return string.dataUsingEncoding(NSISOLatin1StringEncoding)
 }
 
 function base64Slice (buf, start, end) {
