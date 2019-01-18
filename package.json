@@ -1,7 +1,7 @@
 {
   "name": "@skpm/buffer",
   "description": "Node.js Buffer API, for Sketch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Feross Aboukhadijeh",
     "email": "feross@feross.org",
@@ -16,7 +16,7 @@
   ],
   "dependencies": {},
   "devDependencies": {
-    "@skpm/test-runner": "^0.3.0"
+    "@skpm/test-runner": "^0.3.8"
   },
   "homepage": "https://github.com/skpm/buffer",
   "keywords": [

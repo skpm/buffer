@@ -34,21 +34,6 @@ Object.defineProperty(Buffer.prototype, 'offset', {
   }
 })
 
-var NSDATA_SUBCLASSES = [
-  'NSCFData',
-  'NSData',
-  'NSConcreteData',
-  'NSConcreteMutableData',
-  'NSMutableData',
-  'NSPurgeableData',
-  'NSSubrangeData',
-  'NSPageData',
-  '_NSInlineData',
-  '__NSCFData',
-  '_NSZeroData',
-  'OS_dispatch_data'
-]
-
 function createBuffer (length) {
   if (length > K_MAX_LENGTH) {
     throw new RangeError('The value "' + length + '" is invalid for option "size"')
@@ -297,13 +282,7 @@ function fromObject (obj, encodingOrOffset, length) {
     return buf
   }
 
-  var className
-
-  try {
-    className = String(obj.class())
-  } catch (err) {}
-
-  if (className && NSDATA_SUBCLASSES.indexOf(className) !== -1) {
+  if (typeof obj.isKindOfClass === 'function' && obj.isKindOfClass(NSData)) {
     return fromNSData(obj, encodingOrOffset, length)
   }
 
