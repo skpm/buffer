@@ -45,7 +45,8 @@ var NSDATA_SUBCLASSES = [
   'NSPageData',
   '_NSInlineData',
   '__NSCFData',
-  '_NSZeroData'
+  '_NSZeroData',
+  'OS_dispatch_data'
 ]
 
 function createBuffer (length) {
