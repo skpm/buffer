@@ -34,6 +34,10 @@ Object.defineProperty(Buffer.prototype, 'offset', {
   }
 })
 
+function isNSData(obj) {
+  return !!obj && typeof obj.isKindOfClass === 'function' && obj.isKindOfClass(NSData)
+}
+
 function createBuffer (length) {
   if (length > K_MAX_LENGTH) {
     throw new RangeError('The value "' + length + '" is invalid for option "size"')
@@ -282,7 +286,7 @@ function fromObject (obj, encodingOrOffset, length) {
     return buf
   }
 
-  if (typeof obj.isKindOfClass === 'function' && obj.isKindOfClass(NSData)) {
+  if (isNSData(obj)) {
     return fromNSData(obj, encodingOrOffset, length)
   }
 
@@ -323,6 +327,8 @@ Buffer.isBuffer = function isBuffer (b) {
 Buffer.compare = function compare (a, b) {
   if (isInstance(a, Uint8Array)) a = Buffer.from(a, a.offset, a.byteLength)
   if (isInstance(b, Uint8Array)) b = Buffer.from(b, b.offset, b.byteLength)
+  if (isNSData(a)) a = Buffer.from(a)
+  if (isNSData(b)) b = Buffer.from(b)
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
     throw new TypeError(
       'The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array'
@@ -356,6 +362,7 @@ Buffer.isEncoding = function isEncoding (encoding) {
     case 'latin1':
     case 'binary':
     case 'base64':
+    case 'nsdata':
     case 'ucs2':
     case 'ucs-2':
     case 'utf16le':
@@ -390,6 +397,9 @@ Buffer.concat = function concat (list, length) {
     if (isInstance(buf, Uint8Array)) {
       buf = Buffer.from(buf)
     }
+    if (isNSData(buf)) {
+      buf = Buffer.from(buf)
+    }
     if (!Buffer.isBuffer(buf)) {
       throw new TypeError('"list" argument must be an Array of Buffers')
     }
@@ -405,6 +415,9 @@ function byteLength (string, encoding) {
   }
   if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
     return string.byteLength
+  }
+  if (isNSData(string)) {
+    return Number(string.length())
   }
   if (typeof string !== 'string') {
     throw new TypeError(
@@ -504,6 +517,9 @@ function slowToString (encoding, start, end) {
       case 'base64':
         return base64Slice(this, start, end)
 
+      case 'nsdata':
+        return nsdataSlice(this, start, end)
+
       case 'ucs2':
       case 'ucs-2':
       case 'utf16le':
@@ -596,6 +612,9 @@ Buffer.prototype.inspect = function inspect () {
 Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
   if (isInstance(target, Uint8Array)) {
     target = Buffer.from(target, target.offset, target.byteLength)
+  }
+  if (isNSData(target)) {
+    target = Buffer.from(target)
   }
   if (!Buffer.isBuffer(target)) {
     throw new TypeError(
@@ -828,6 +847,10 @@ function latin1Write (buf, string, offset, length) {
   return asciiWrite(buf, string, offset, length)
 }
 
+function nsdataWrite (buf, string, offset, length) {
+  return blitBuffer(fromNSData(string), buf, offset, length)
+}
+
 function base64Write (buf, string, offset, length) {
   return blitBuffer(base64ToBytes(string), buf, offset, length)
 }
@@ -889,6 +912,9 @@ Buffer.prototype.write = function write (string, offset, length, encoding) {
       case 'binary':
         return latin1Write(this, string, offset, length)
 
+      case 'nsdata':
+        return nsdataWrite(this, string, offset, length)
+
       case 'base64':
         // Warning: maxLength not taken into account in base64Write
         return base64Write(this, string, offset, length)
@@ -915,8 +941,7 @@ Buffer.prototype.toJSON = function toJSON () {
 }
 
 Buffer.prototype.toNSData = function toNSData () {
-  const string = NSString.stringWithString(this.toString('binary'))
-  return string.dataUsingEncoding(NSISOLatin1StringEncoding)
+  return this.toString('nsdata')
 }
 
 function base64Slice (buf, start, end) {
@@ -1041,6 +1066,11 @@ function latin1Slice (buf, start, end) {
     ret += String.fromCharCode(buf[i])
   }
   return ret
+}
+
+function nsdataSlice (buf, start, end) {
+  const string = NSString.stringWithString(latin1Slice(buf, start, end))
+  return string.dataUsingEncoding(NSISOLatin1StringEncoding)
 }
 
 function hexSlice (buf, start, end) {
