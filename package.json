@@ -16,7 +16,7 @@
   ],
   "dependencies": {},
   "devDependencies": {
-    "@skpm/test-runner": "^0.3.8"
+    "@skpm/test-runner": "^0.3.13"
   },
   "homepage": "https://github.com/skpm/buffer",
   "keywords": [
